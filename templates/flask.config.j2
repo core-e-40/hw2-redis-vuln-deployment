@@ -1,0 +1,27 @@
+# =============================================================================
+# Flask Service
+# NOTE: This is managed by Ansible, never change this file
+# By: Cory Le (chl2099)
+# Date: 2/5/26
+# =============================================================================
+
+[Unit]
+Description={{ flask_app_name }}
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User={{ flask_app_user }}
+Group={{ flask_app_user }}
+WorkingDirectory={{ flask_app_directory }}
+ExecStart={{ flask_app_directory }}/venv/bin/python {{ flask_app_directory }}/app.py
+Restart=always
+RestartSec=3
+Environment=FLASK_ENV=production
+Environment=FLASK_SECRET_KEY={{ flask_secret_key }}
+Environment=REDIS_HOST=127.0.0.1
+Environment=REDIS_PORT={{ redis_port }}
+
+[Install]
+WantedBy=multi-user.target

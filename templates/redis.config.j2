@@ -1,0 +1,39 @@
+# =============================================================================
+# Vulnerable Redis Configuration
+# NOTE: This is managed by Ansible, never change this file
+# By: Cory Le (chl2099)
+# Date: 2/5/26
+# =============================================================================
+
+# Binds to all interfaces (increases attack surface, possible vulnerability)
+bind {{ redis_bind_address }}
+port {{ redis_port }}
+
+# Purposely disabled protected mode taken from main.yml (vulnerability, allows for connection without auth)
+protected-mode {{ redis_protected_mode }}
+
+{% if redis_requirepass %}
+# Taken from main.yml, redis_requirepass is set to an empty string, no password
+requirepass {{ redis_requirepass }} 
+{% else %}
+# Vulnerbility, no password means no auth
+{% endif %}
+
+# General
+daemonize no
+supervised systemd
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Data persistence
+dir /var/lib/redis
+dbfilename dump.rdb
+save 900 1
+save 300 10
+save 60 10000
+
+# Vulnerability - Config fails to disable dangerous commands/settings
+# example (setting them to "" disables them):
+# rename-command FLUSHALL ""
+# rename-command CONFIG ""
+# rename-command DEBUG ""

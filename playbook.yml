@@ -1,0 +1,195 @@
+# =============================================================================
+# Redis Vulnerable Service Deployment Playbook
+# Deploys: Nginx -> Flask -> Redis
+# Target: Ubuntu 24.04 LTS
+# By: Cory Le (chl2099)
+# Date: 2/5/26
+# =============================================================================
+
+- name: Deploy Vulnerable Redis Service with Flask and Nginx
+  hosts: vulnerable_servers
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  handlers:
+    # Handlers only run when notified by a task that made changes
+    - name: Restart Redis
+      systemd:
+        name: redis-server
+        state: restarted
+        enabled: true
+
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: true
+
+    - name: Restart Flask App
+      systemd:
+        name: "{{ flask_app_name }}"
+        state: restarted
+        enabled: true
+
+  tasks:
+
+  # System Preparation
+  - name: Update apt package cache
+    apt:
+      update_cache: true
+      cache_valid_time: 3600
+
+  - name: Install required system packages
+    apt:
+      name: "{{ required_packages }}"
+      state: present
+
+  # Setup Flask User And Directory
+  - name: Create dedicated service account for Flask application
+    user:
+      name: "{{ flask_app_user }}"
+      system: true
+      shell: /usr/sbin/nologin
+      create_home: false
+      comment: "Flask vulnerable app service account"
+
+  - name: Create Flask application directory
+    file:
+      path: "{{ flask_app_directory }}"
+      state: directory
+      owner: "{{ flask_app_user }}"
+      group: "{{ flask_app_user }}"
+      mode: "0755"
+
+  - name: Create Python virtual environment for Flask app
+    command: python3 -m venv {{ flask_app_directory }}/venv
+    args:
+      creates: "{{ flask_app_directory }}/venv/bin/activate"
+
+  - name: Install Flask Python dependencies in virtual environment
+    pip:
+      name: "{{ flask_dependencies }}"
+      virtualenv: "{{ flask_app_directory }}/venv"
+
+  - name: Deploy vulnerable Flask application
+    copy:
+      src: files/flask_app.py
+      dest: "{{ flask_app_directory }}/app.py"
+      owner: "{{ flask_app_user }}"
+      group: "{{ flask_app_user }}"
+      mode: "0644"
+    notify: Restart Flask App
+
+  # Creating the Intentionally Vulnerable Redis Configuration
+  - name: Deploy vulnerable Redis configuration from template
+    template:
+      src: templates/redis.config.j2
+      dest: /etc/redis/redis.conf
+      owner: redis
+      group: redis
+      mode: "0644"
+      backup: true
+    notify: Restart Redis
+
+  - name: Remove any Redis backup configuration files that could override the settings written by ansible_host
+    shell: rm -f /etc/redis/redis.conf.*
+    changed_when: false
+
+  - name: Ensure Redis data directory exists
+    file:
+      path: /var/lib/redis
+      state: directory
+      owner: redis
+      group: redis
+      mode: "0755"
+
+  # Deploying and starting Flask Systemd Service
+  - name: Deploy Flask application systemd service file
+    template:
+      src: templates/flask.config.j2
+      dest: "/etc/systemd/system/{{ flask_app_name }}.service"
+      mode: "0644"
+    notify: Restart Flask App
+
+  - name: Reload systemd daemon to pick up new service file
+    systemd:
+      daemon_reload: true
+
+  - name: Enable and start Flask application service
+    systemd:
+      name: "{{ flask_app_name }}"
+      state: started
+      enabled: true
+
+  # Nginx Reverse Proxy Configuration And Starting
+  - name: Remove default Nginx site configuration
+    file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+    notify: Restart Nginx
+
+  - name: Deploy Nginx reverse proxy configuration from template
+    template:
+      src: templates/nginx-flask.config.j2
+      dest: /etc/nginx/sites-available/{{ flask_app_name }}.conf
+      mode: "0644"
+    notify: Restart Nginx
+
+  - name: Enable Nginx site by creating symlink
+    file:
+      src: /etc/nginx/sites-available/{{ flask_app_name }}.conf
+      dest: /etc/nginx/sites-enabled/{{ flask_app_name }}.conf
+      state: link
+    notify: Restart Nginx
+
+  - name: Validate Nginx configuration syntax
+    command: nginx -t
+    changed_when: false
+
+  # Firewall Configuration And Checks
+  - name: Allow HTTP traffic through UFW firewall
+    ufw:
+      rule: allow
+      port: "{{ nginx_listen_port | string }}"
+      proto: tcp
+
+  - name: Allow Redis traffic through UFW firewall (VULNERABLE)
+    ufw:
+      rule: allow
+      port: "{{ redis_port | string }}"
+      proto: tcp
+
+  - name: Verify Redis is listening and accessible
+    wait_for:
+      port: "{{ redis_port }}"
+      host: "0.0.0.0"
+      delay: 2
+      timeout: 30
+
+  - name: Verify Flask app is listening
+    wait_for:
+      port: "{{ flask_app_port }}"
+      host: "127.0.0.1"
+      delay: 2
+      timeout: 30
+
+  - name: Verify Nginx is listening
+    wait_for:
+      port: "{{ nginx_listen_port }}"
+      host: "0.0.0.0"
+      delay: 2
+      timeout: 30
+
+  - name: Display deployment summary
+    debug:
+      msg:
+        - "============================================="
+        - "  Vulnerable Redis Deployment Complete!"
+        - "============================================="
+        - "Web Interface: http://{{ ansible_host }}:{{ nginx_listen_port }}"
+        - "Redis (VULNERABLE): {{ ansible_host }}:{{ redis_port }}"
+        - "Flask Backend: 127.0.0.1:{{ flask_app_port }}"
+        - "============================================="
+
+  

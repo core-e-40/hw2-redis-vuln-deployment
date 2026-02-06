@@ -1,0 +1,26 @@
+# =============================================================================
+# Nginx Reverse Proxy Configuration for Flask App
+# NOTE: This is managed by Ansible, never change this file
+# By: Cory Le (chl2099)
+# Date: 2/5/26
+# =============================================================================
+
+server {
+    listen {{ nginx_listen_port }};
+    server_name {{ nginx_server_name }};
+
+    # Proxy all requests to Flask backend
+    location / {
+        proxy_pass http://127.0.0.1:{{ flask_app_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # disabling logging is arguably another vulnerability
+    # no logging means no chance to create detection rules for the reverse proxy
+    access_log off;
+    error_log /var/log/nginx/flask-app-error.log;
+}

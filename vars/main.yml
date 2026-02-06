@@ -1,0 +1,40 @@
+#===============================================================================
+# Configurations For Redis Vulnerable Service Deployment With Flask And Nginx
+# By: Cory Le (chl2099)
+# Date: 2/5/26
+#===============================================================================
+
+# Redis Configuration
+redis_bind_address: "0.0.0.0" # Binds to all interfaces (increases attack surface, possible vulnerbility)
+redis_port: 6379 # Default Redis Port
+redis_protected_mode: "no" # Purposely disabled protected mode (vulnerbility)
+redis_requirepass: "" # No password set (vulnerbility)
+
+# Flask Application Configuration
+flask_app_name: "vuln-redis-app" 
+flask_app_directory: "/opt/vuln-redis-app"
+flask_app_port: 5000
+flask_app_user: "flaskapp"
+# This itself is arguably another possible vulnerbility but the focus of vulns should be on Redis
+flask_secret_key: "password123" 
+
+# Nginx Configuration
+nginx_listen_port: 80
+nginx_server_name: "test-nginx-0"
+
+# System
+target_os_family: "Debian"
+required_packages:
+  - redis-server
+  - nginx
+  - python3
+  - python3-pip
+  - python3-venv
+  - git
+  - net-tools
+  - curl
+
+# Flask Python Dependencies
+flask_dependencies:
+  - flask
+  - redis
