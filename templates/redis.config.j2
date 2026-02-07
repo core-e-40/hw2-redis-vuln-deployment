@@ -25,6 +25,10 @@ supervised systemd
 loglevel notice
 logfile /var/log/redis/redis-server.log
 
+# Allows for CONFIG SET for dir and dbfilename (vulnerbility, attacker can use this misconfiguration to write their own SSH keys)
+enable-protected-configs yes
+
+
 # Data persistence
 dir /var/lib/redis
 dbfilename dump.rdb

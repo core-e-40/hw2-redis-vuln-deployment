@@ -104,6 +104,15 @@
       group: redis
       mode: "0755"
 
+  # Essential for vulnerbility demonstration so an attacker can write their SSH key to Redis
+  - name: Create Redis SSH directory
+    file:
+      path: /var/lib/redis/.ssh
+      state: directory
+      owner: redis
+      group: redis
+      mode: "0700"
+
   # Deploying and starting Flask Systemd Service
   - name: Deploy Flask application systemd service file
     template:
