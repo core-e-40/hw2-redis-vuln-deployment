@@ -113,6 +113,12 @@
       group: redis
       mode: "0700"
 
+  # Essential to change redis user's shell to bash for vulnerbility demonstration
+  - name: Set Redis user shell to bash
+    user:
+      name: redis
+      shell: /bin/bash
+
   # Deploying and starting Flask Systemd Service
   - name: Deploy Flask application systemd service file
     template:
